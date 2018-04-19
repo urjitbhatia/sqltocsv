@@ -3,6 +3,7 @@ package sqltocsv_test
 import (
 	"bytes"
 	"database/sql"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -187,9 +188,11 @@ func assertCsvMatch(t tester, expected string, actual string) {
 
 func BenchmarkWrite(b *testing.B) {
 	db := setupDatabase(b)
-	// Add 100000 rows
-	for i := 0; i < 100000; i++ {
+	// Add 10000 rows
+	expected := "name,age,bdate\nAlice,1,1973-11-29 21:33:09 +0000 UTC\n"
+	for i := 0; i < 10000; i++ {
 		exec(b, db, "INSERT|people|name=Alice,age=?,bdate=?,nickname=?", i, time.Unix(123456789, 0), nil)
+		expected += fmt.Sprintf("Alice,%d,1973-11-29 21:33:09 +0000 UTC\n", i)
 	}
 	b.ResetTimer()
 
@@ -203,5 +206,6 @@ func BenchmarkWrite(b *testing.B) {
 		if err != nil {
 			b.Fatalf("error in WriteCsvToWriter: %v", err)
 		}
+		assertCsvMatch(b, expected, buffer.String())
 	}
 }
