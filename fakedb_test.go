@@ -701,6 +701,7 @@ func (rc *rowsCursor) Next(dest []driver.Value) error {
 	if rc.pos >= len(rc.rows) {
 		return io.EOF // per interface spec
 	}
+	time.Sleep(time.Nanosecond * 900)
 	for i, v := range rc.rows[rc.pos].cols {
 		// TODO(bradfitz): convert to subset types? naah, I
 		// think the subset types should only be input to
