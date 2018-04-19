@@ -11,6 +11,12 @@ import (
 	"github.com/joho/sqltocsv"
 )
 
+// Fatalf interface for easy testing
+type tester interface {
+	Fatalf(string, ...interface{})
+	Errorf(string, ...interface{})
+}
+
 func init() {
 	os.Setenv("TZ", "UTC")
 }
@@ -126,7 +132,7 @@ func TestConvertingNilValueShouldReturnEmptyString(t *testing.T) {
 	assertCsvMatch(t, expected, actual)
 }
 
-func checkQueryAgainstResult(t *testing.T, innerTestFunc func(*sql.Rows) string) {
+func checkQueryAgainstResult(t tester, innerTestFunc func(*sql.Rows) string) {
 	rows := getTestRows(t)
 
 	expected := "name,age,bdate\nAlice,1,1973-11-29 21:33:09 +0000 UTC\n"
@@ -136,11 +142,11 @@ func checkQueryAgainstResult(t *testing.T, innerTestFunc func(*sql.Rows) string)
 	assertCsvMatch(t, expected, actual)
 }
 
-func getTestRows(t *testing.T) *sql.Rows {
+func getTestRows(t tester) *sql.Rows {
 	return getTestRowsByQuery(t, "SELECT|people|name,age,bdate|")
 }
 
-func getTestRowsByQuery(t *testing.T, query string) *sql.Rows {
+func getTestRowsByQuery(t tester, query string) *sql.Rows {
 	db := setupDatabase(t)
 
 	rows, err := db.Query(query)
@@ -155,7 +161,7 @@ func getConverter(t *testing.T) *sqltocsv.Converter {
 	return sqltocsv.New(getTestRows(t))
 }
 
-func setupDatabase(t *testing.T) *sql.DB {
+func setupDatabase(t tester) *sql.DB {
 	db, err := sql.Open("test", "foo")
 	if err != nil {
 		t.Fatalf("Error opening testdb %v", err)
@@ -166,15 +172,36 @@ func setupDatabase(t *testing.T) *sql.DB {
 	return db
 }
 
-func exec(t testing.TB, db *sql.DB, query string, args ...interface{}) {
+func exec(t tester, db *sql.DB, query string, args ...interface{}) {
 	_, err := db.Exec(query, args...)
 	if err != nil {
 		t.Fatalf("Exec of %q: %v", query, err)
 	}
 }
 
-func assertCsvMatch(t *testing.T, expected string, actual string) {
+func assertCsvMatch(t tester, expected string, actual string) {
 	if actual != expected {
 		t.Errorf("Expected CSV:\n\n%v\n Got CSV:\n\n%v\n", expected, actual)
+	}
+}
+
+func BenchmarkWrite(b *testing.B) {
+	db := setupDatabase(b)
+	// Add 100000 rows
+	for i := 0; i < 100000; i++ {
+		exec(b, db, "INSERT|people|name=Alice,age=?,bdate=?,nickname=?", i, time.Unix(123456789, 0), nil)
+	}
+	b.ResetTimer()
+
+	for n := 0; n < b.N; n++ {
+		rows, err := db.Query("SELECT|people|name,age,bdate|")
+		if err != nil {
+			b.Error(err)
+		}
+		buffer := &bytes.Buffer{}
+		err = sqltocsv.Write(buffer, rows)
+		if err != nil {
+			b.Fatalf("error in WriteCsvToWriter: %v", err)
+		}
 	}
 }
