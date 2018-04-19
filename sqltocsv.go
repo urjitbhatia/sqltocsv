@@ -120,9 +120,12 @@ func (c Converter) Write(writer io.Writer) error {
 	values := make([]interface{}, count)
 	valuePtrs := make([]interface{}, count)
 
+	// Start preprocessor and writer go routine
+	data := make(chan []string, 10)
+	procErrors := preProcessAndWriteCSV(csvWriter, c.rowPreProcessor, columnNames, data)
+
 	for rows.Next() {
 		row := make([]string, count)
-
 		for i := range columnNames {
 			valuePtrs[i] = &values[i]
 		}
@@ -153,24 +156,38 @@ func (c Converter) Write(writer io.Writer) error {
 				row[i] = fmt.Sprintf("%v", value)
 			}
 		}
-
-		writeRow := true
-		if c.rowPreProcessor != nil {
-			writeRow, row = c.rowPreProcessor(row, columnNames)
-		}
-		if writeRow {
-			err = csvWriter.Write(row)
-			if err != nil {
-				// TODO wrap this err to give context as to why it failed?
-				return err
-			}
-		}
+		data <- row
 	}
 	err = rows.Err()
-
+	close(data)
+	<-procErrors
 	csvWriter.Flush()
 
 	return err
+}
+
+func preProcessAndWriteCSV(writer *csv.Writer, rowPreProcessor CsvPreProcessorFunc,
+	colNames []string, data chan []string) chan error {
+
+	errChan := make(chan error)
+
+	go func() {
+		for row := range data {
+			writeRow := true
+			if rowPreProcessor != nil {
+				writeRow, row = rowPreProcessor(row, colNames)
+			}
+			if writeRow {
+				err := writer.Write(row)
+				if err != nil {
+					// TODO wrap this err to give context as to why it failed?
+					errChan <- err
+				}
+			}
+		}
+		errChan <- nil
+	}()
+	return errChan
 }
 
 // New will return a Converter which will write your CSV however you like
