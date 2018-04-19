@@ -1,4 +1,4 @@
-// sqltocsv is a package to make it dead easy to turn arbitrary database query
+// Package sqltocsv is a package to make it dead easy to turn arbitrary database query
 // results (in the form of database/sql Rows) into CSV output.
 //
 // Source and README at https://github.com/joho/sqltocsv
@@ -33,7 +33,7 @@ func Write(writer io.Writer, rows *sql.Rows) error {
 	return New(rows).Write(writer)
 }
 
-// CsvPreprocessorFunc is a function type for preprocessing your CSV.
+// CsvPreProcessorFunc is a function type for preprocessing your CSV.
 // It takes the columns after they've been munged into strings but
 // before they've been passed into the CSV writer.
 //
@@ -123,7 +123,7 @@ func (c Converter) Write(writer io.Writer) error {
 	for rows.Next() {
 		row := make([]string, count)
 
-		for i, _ := range columnNames {
+		for i := range columnNames {
 			valuePtrs[i] = &values[i]
 		}
 
@@ -131,7 +131,7 @@ func (c Converter) Write(writer io.Writer) error {
 			return err
 		}
 
-		for i, _ := range columnNames {
+		for i := range columnNames {
 			var value interface{}
 			rawValue := values[i]
 
